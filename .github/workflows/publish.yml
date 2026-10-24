@@ -111,7 +111,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          set -- npm-package/*.tgz
+          # An absolute path: npm reads "npm-package/x.tgz" as a GitHub "owner/repo" and tries to clone it over ssh.
+          set -- "$PWD"/npm-package/*.tgz
           if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then echo "Expected exactly one tarball" >&2; exit 1; fi
           npm publish "$1" --provenance --access public --ignore-scripts
 
