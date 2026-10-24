@@ -1,0 +1,128 @@
+{
+  "$comment": "The Idempotency-Key the GPT-Video API accepts, and the keys each generator in this repository makes. Every SDK checks a key the caller passes against `accepted` before it sends anything, and refuses every entry of `invalid` with the same check. Every generator makes keys that match both `accepted` and its own pattern. Match the whole string: in Python use re.fullmatch, because `$` also matches before a final newline.",
+  "header": "Idempotency-Key",
+  "accepted": {
+    "pattern": "^[\\x21-\\x7E]{1,255}$",
+    "minLength": 1,
+    "maxLength": 255,
+    "rule": "1 to 255 visible ASCII characters, with no spaces."
+  },
+  "valid": [
+    {
+      "key": "a",
+      "why": "one character is enough"
+    },
+    {
+      "key": "!",
+      "why": "the first visible ASCII character, 0x21"
+    },
+    {
+      "key": "~",
+      "why": "the last visible ASCII character, 0x7E"
+    },
+    {
+      "key": "order-42",
+      "why": "a key the caller chose"
+    },
+    {
+      "key": "a,b",
+      "why": "a comma is a visible character"
+    },
+    {
+      "key": "\"quoted\"\\path",
+      "why": "quotes and backslashes are visible characters"
+    },
+    {
+      "key": "3f2b8c1e-5d4a-4b6f-9e7d-1a2b3c4d5e6f",
+      "why": "a UUID, the form the SDKs make"
+    },
+    {
+      "key": "pm-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "why": "the form Postman makes"
+    },
+    {
+      "key": "n8n-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "why": "the form the n8n node makes"
+    },
+    {
+      "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+      "why": "255 characters, the longest key"
+    }
+  ],
+  "invalid": [
+    {
+      "key": "",
+      "why": "empty"
+    },
+    {
+      "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+      "why": "256 characters, one more than the longest key"
+    },
+    {
+      "key": "order 42",
+      "why": "a space: two Idempotency-Key headers arrive joined by a comma and a space"
+    },
+    {
+      "key": " order-42",
+      "why": "a leading space"
+    },
+    {
+      "key": "order-42 ",
+      "why": "a trailing space"
+    },
+    {
+      "key": "order-42\n",
+      "why": "a final newline, which a Python `$` would let through"
+    },
+    {
+      "key": "order\t42",
+      "why": "a tab"
+    },
+    {
+      "key": "order\r\n42",
+      "why": "a line break, which would split the header"
+    },
+    {
+      "key": "order-é",
+      "why": "a letter outside ASCII"
+    },
+    {
+      "key": "order 42",
+      "why": "a no-break space"
+    },
+    {
+      "key": "order",
+      "why": "DEL, 0x7F, is not visible"
+    },
+    {
+      "key": "order\u0000",
+      "why": "NUL"
+    },
+    {
+      "key": "ｏｒｄｅｒ",
+      "why": "full-width letters"
+    }
+  ],
+  "generators": {
+    "js": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "example": "3f2b8c1e-5d4a-4b6f-9e7d-1a2b3c4d5e6f",
+      "how": "crypto.randomUUID(), once per call, before the first attempt"
+    },
+    "python": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "example": "3f2b8c1e-5d4a-4b6f-9e7d-1a2b3c4d5e6f",
+      "how": "str(uuid.uuid4()), once per call, before the first attempt"
+    },
+    "postman": {
+      "pattern": "^pm-[0-9a-f]{64}$",
+      "example": "pm-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "how": "pm- and the SHA-256, in lowercase hex, of the method, the resolved path after the API version (no host, no query), the resolved body in canonical form and the per-person salt"
+    },
+    "n8n": {
+      "pattern": "^n8n-[0-9a-f]{64}$",
+      "example": "n8n-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "how": "n8n- and the SHA-256, in lowercase hex, of the instance, workflow, execution, node, run, item and call, once per call of an item; when an AI Agent runs the node as a tool, the arguments of the tool call take the place of the run; a key the user sets in the node is sent as it is, or followed by : and the name of the call when one item makes several calls"
+    }
+  }
+}

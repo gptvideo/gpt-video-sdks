@@ -1,0 +1,48 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.gpt-video/gpt-video-full",
+  "title": "GPT-Video Full",
+  "description": "The whole GPT-Video catalogue: clips, split screen, streamer, fake text, voiceovers, timeline.",
+  "version": "1.0.0",
+  "websiteUrl": "https://www.gpt-video.com/developers/mcp",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.gpt-video.com/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Your GPT-Video API key, sent as a bearer token.",
+          "value": "Bearer {api_key}",
+          "isRequired": true,
+          "isSecret": true,
+          "variables": {
+            "api_key": {
+              "description": "Your GPT-Video API key (gvk_…), created on the Developers page.",
+              "isRequired": true,
+              "isSecret": true
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "gpt-video-mcp",
+      "version": "1.0.0",
+      "transport": { "type": "stdio" },
+      "packageArguments": [{ "type": "named", "name": "--edition", "value": "full" }],
+      "environmentVariables": [
+        {
+          "name": "GPT_VIDEO_API_KEY",
+          "description": "Your GPT-Video API key, created on the Developers page.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

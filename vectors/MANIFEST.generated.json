@@ -1,0 +1,7 @@
+{
+  "$comment": "The files of this folder that are generated from the GPT-Video API catalogue. Each one is written again, whole, at every generation, and none is edited by hand.",
+  "files": [
+    "requests.generated.json",
+    "webhooks.generated.json"
+  ]
+}

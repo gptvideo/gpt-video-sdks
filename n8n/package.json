@@ -1,0 +1,61 @@
+{
+  "name": "n8n-nodes-gpt-video",
+  "version": "1.0.0",
+  "description": "The GPT-Video nodes for n8n: upload a video, find its clips, export them, and start a workflow when a job or an export ends.",
+  "license": "MIT",
+  "homepage": "https://www.gpt-video.com/developers",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gptvideo/gpt-video-sdks.git",
+    "directory": "n8n"
+  },
+  "bugs": {
+    "url": "https://github.com/gptvideo/gpt-video-sdks/issues"
+  },
+  "author": {
+    "name": "GPT-Video",
+    "email": "hello@gpt-video.com"
+  },
+  "keywords": [
+    "n8n-community-node-package",
+    "gpt-video",
+    "video",
+    "clips",
+    "captions",
+    "short-form video"
+  ],
+  "scripts": {
+    "build": "n8n-node build",
+    "prepack": "n8n-node build",
+    "lint": "n8n-node lint",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "test": "node --test --import ./test/support/register.mjs \"test/**/*.test.mts\""
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/GptVideoApi.credentials.js",
+      "dist/credentials/GptVideoWebhookApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/GptVideo/GptVideo.node.js",
+      "dist/nodes/GptVideoTrigger/GptVideoTrigger.node.js"
+    ]
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "0.51.5",
+    "@types/node": "^24.0.0",
+    "eslint": "9.32.0",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

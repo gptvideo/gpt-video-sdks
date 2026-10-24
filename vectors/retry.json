@@ -1,0 +1,822 @@
+{
+  "$comment": "How a GPT-Video SDK sends one call: retries, the Idempotency-Key, waits and the overall deadline. The rules below are the contract and every scenario is a case of them. The JavaScript SDK, the Python SDK and the n8n node run every scenario with a fake clock and a fake transport; scripts/sdk/retry-vectors.test.mjs runs them on a reference model of the rules, so a scenario that contradicts the rules fails before any SDK reads it.",
+  "version": 1,
+  "rules": [
+    "One call is one logical request. When its operation sends an Idempotency-Key, the key is the caller's (checked against keys.json before anything is sent) or one made once, before the first attempt. Every attempt and every wait of the call sends that same key. A call never makes a second key.",
+    "An attempt ends when the API answers or when its own timeout passes: the smaller of timeoutMs and what is left of deadlineMs, counted from the start of the call. An answer that arrives at or after that moment is a TIMEOUT.",
+    "After an attempt, the outcome is one of: success (2xx with a JSON body), an API error (a JSON body with error.code), BAD_RESPONSE (any other answer: a body that is not JSON, JSON without error.code, or a 3xx, which is never followed), CONNECTION_FAILED, TIMEOUT, or ABORTED (the caller's signal; never retried).",
+    "Retried, with retrySafe required: CONNECTION_FAILED, TIMEOUT, NOT_READY, IDEMPOTENCY_IN_PROGRESS, INTERNAL, UPSTREAM_FAILED, UNAVAILABLE unless error.details.reason is switched_off, and BAD_RESPONSE with a 5xx status. Retried even when retrySafe is false: RATE_LIMITED, which the API refuses before running anything. Everything else stops the call, unknown codes included.",
+    "Every retried outcome counts as a failure, except IDEMPOTENCY_IN_PROGRESS, which means the first attempt is still running on the server: it is waited for until the deadline and never uses up maxRetries. When the failures exceed maxRetries, the call stops.",
+    "The pause before the next attempt is the Retry-After of the answer when it is readable, else a backoff. Retry-After is readable when, after trimming spaces and tabs, it is ASCII digits (seconds) or an IMF-fixdate (Sun, 11 Oct 2026 12:00:07 GMT, a real calendar date, weekday name not checked) that is not in the past; a date becomes ceil((date - now) / 1000) seconds. Anything else (-1, abc, 1e9, 1.5, an obsolete date format, a past date) counts as absent.",
+    "A readable Retry-After over 60 seconds stops the call. The pause is seconds x 1000 ms.",
+    "The backoff after attempt number a (1, 2, 3, ...) is a whole number of milliseconds drawn uniformly from [0, min(8000, 500 x 2^(a-1))). In a scenario, {\"backoff\": a-1} stands for that range.",
+    "A pause that would end at or after the deadline is not taken: the call stops. A pause ends early when the caller aborts, and the call stops with ABORTED.",
+    "When a call stops, its error is the last outcome. retryable is true when that outcome is one the rules above retry for this operation. idempotencyKey is the key of the call whenever it has a valid one. retryAfterSec is the readable Retry-After, in seconds, of the answer that is the last outcome, else null; it is always null for CONNECTION_FAILED, TIMEOUT and ABORTED.",
+    "mayHaveSpent is true only for an operation whose effect is spend, when at least one request left the client and the last outcome leaves the charge unknown: CONNECTION_FAILED, TIMEOUT, ABORTED, IDEMPOTENCY_IN_PROGRESS, BAD_RESPONSE with a 2xx or 5xx status, or an API error with a 5xx status other than UNAVAILABLE switched_off. A definite refusal (4xx with a JSON error) never may have spent, with one exception: a RATE_LIMITED that comes after an outcome of the same call that left the charge unknown. The API refuses a rate-limited request before it looks at the Idempotency-Key, so that 429 says nothing about the earlier attempt, which may still be running or may have run."
+  ],
+  "defaults": {
+    "now": "2026-10-11T12:00:00.000Z",
+    "maxRetries": 2,
+    "timeoutMs": 60000,
+    "deadlineMs": 180000,
+    "retryAfterMaxSec": 60,
+    "backoff": { "baseMs": 500, "capMs": 8000 }
+  },
+  "operations": {
+    "spend": { "method": "POST", "effect": "spend", "idempotencyKey": "required", "retrySafe": true, "like": "analyze_project" },
+    "write": { "method": "POST", "effect": "write", "idempotencyKey": "auto", "retrySafe": true, "like": "accept_clip" },
+    "read": { "method": "GET", "effect": "read", "idempotencyKey": "none", "retrySafe": true, "like": "get_project" },
+    "unsafe": { "method": "POST", "effect": "write", "idempotencyKey": "none", "retrySafe": false, "like": "no operation has this shape today; the rules still cover it" }
+  },
+  "format": {
+    "responses": "In order, one per request. {status, json} or {status, text} is an answer, with optional headers and afterMs (how long the server takes, default 0). {network: \"connection_failed\"} fails at once. {network: \"hang\"} never answers. repeat: n stands for n copies of the entry.",
+    "options": "maxRetries, timeoutMs, deadlineMs, idempotencyKey (the caller's), abortAfterMs (the caller aborts at this time), abortedBeforeStart (the signal is already aborted).",
+    "expect.key": "generated: one made key, matching keys.json for the SDK's language, on every request. caller: options.idempotencyKey on every request. none: no Idempotency-Key header on any request.",
+    "expect.sleeps": "Every pause, in order: after is the code of the outcome that caused it, then ms or backoff. The SDK's onRetry reports the same list.",
+    "expect.error.class": "api (GptVideoApiError), network (GptVideoNetworkError) or local (GptVideoError, found before sending). error.key is generated, caller or null."
+  },
+  "scenarios": [
+    {
+      "name": "spend-succeeds-first-time",
+      "why": "A spend always carries a key, even when nothing goes wrong.",
+      "operation": "spend",
+      "responses": [{ "status": 202, "json": { "job": { "id": "job_1", "status": "queued", "finishedAt": null } } }],
+      "expect": { "requests": 1, "key": "generated", "sleeps": [], "elapsedMs": 0, "result": { "status": 202 } }
+    },
+    {
+      "name": "read-sends-no-key",
+      "why": "A GET never carries an Idempotency-Key.",
+      "operation": "read",
+      "responses": [{ "status": 200, "json": { "id": "prj_1" } }],
+      "expect": { "requests": 1, "key": "none", "sleeps": [], "result": { "status": 200 } }
+    },
+    {
+      "name": "caller-key-sent-unchanged",
+      "why": "The caller's key goes out as given on every attempt.",
+      "operation": "spend",
+      "options": { "idempotencyKey": "order-42" },
+      "responses": [
+        { "status": 500, "json": { "error": { "code": "INTERNAL", "message": "Something went wrong on our side.", "requestId": "req_3a" } } },
+        { "status": 202, "json": { "job": { "id": "job_1", "status": "queued", "finishedAt": null } } }
+      ],
+      "expect": { "requests": 2, "key": "caller", "sleeps": [{ "after": "INTERNAL", "backoff": 0 }], "result": { "status": 202 } }
+    },
+    {
+      "name": "caller-key-refused-before-sending",
+      "why": "A key the API would refuse is refused locally, and nothing is sent.",
+      "operation": "spend",
+      "options": { "idempotencyKey": "order 42" },
+      "responses": [],
+      "expect": {
+        "requests": 0,
+        "sleeps": [],
+        "error": { "class": "local", "code": "INVALID_ARGUMENT", "status": null, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "key": null }
+      }
+    },
+    {
+      "name": "server-error-then-success",
+      "why": "A 500 on a spend is retried with the same key: the API runs it again without charging twice.",
+      "operation": "spend",
+      "responses": [
+        { "status": 500, "json": { "error": { "code": "INTERNAL", "message": "Something went wrong on our side.", "requestId": "req_5a" } } },
+        { "status": 202, "json": { "job": { "id": "job_1", "status": "queued", "finishedAt": null } } }
+      ],
+      "expect": { "requests": 2, "key": "generated", "sleeps": [{ "after": "INTERNAL", "backoff": 0 }], "result": { "status": 202 } }
+    },
+    {
+      "name": "in-progress-does-not-use-up-retries",
+      "why": "Seventy seconds of a spend still running on the server is a wait, not three failures: the call ends with the answer.",
+      "operation": "spend",
+      "responses": [
+        { "repeat": 14, "status": 409, "headers": { "Retry-After": "5" }, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_6a" } } },
+        { "status": 202, "headers": { "Idempotent-Replayed": "true" }, "json": { "job": { "id": "job_1", "status": "running", "finishedAt": null } } }
+      ],
+      "expect": {
+        "requests": 15,
+        "key": "generated",
+        "sleeps": [
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }, { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }, { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }, { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }, { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }, { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }, { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }, { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }
+        ],
+        "elapsedMs": 70000,
+        "result": { "status": 202 }
+      }
+    },
+    {
+      "name": "in-progress-with-zero-retries",
+      "why": "maxRetries: 0 still waits for a spend that is running: the wait is not a retry.",
+      "operation": "spend",
+      "options": { "maxRetries": 0 },
+      "responses": [
+        { "status": 409, "headers": { "Retry-After": "2" }, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_7a" } } },
+        { "status": 202, "headers": { "Idempotent-Replayed": "true" }, "json": { "job": { "id": "job_1", "status": "queued", "finishedAt": null } } }
+      ],
+      "expect": { "requests": 2, "key": "generated", "sleeps": [{ "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 2000 }], "elapsedMs": 2000, "result": { "status": 202 } }
+    },
+    {
+      "name": "in-progress-between-failures",
+      "why": "Only the two 500s count against maxRetries; the waits in between do not.",
+      "operation": "spend",
+      "responses": [
+        { "status": 500, "json": { "error": { "code": "INTERNAL", "message": "Something went wrong on our side.", "requestId": "req_8a" } } },
+        { "repeat": 2, "status": 409, "headers": { "Retry-After": "5" }, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_8b" } } },
+        { "status": 500, "json": { "error": { "code": "INTERNAL", "message": "Something went wrong on our side.", "requestId": "req_8c" } } },
+        { "status": 409, "headers": { "Retry-After": "5" }, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_8d" } } },
+        { "status": 202, "json": { "job": { "id": "job_1", "status": "queued", "finishedAt": null } } }
+      ],
+      "expect": {
+        "requests": 6,
+        "key": "generated",
+        "sleeps": [
+          { "after": "INTERNAL", "backoff": 0 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "INTERNAL", "backoff": 3 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }
+        ],
+        "result": { "status": 202 }
+      }
+    },
+    {
+      "name": "third-failure-gives-up",
+      "why": "With maxRetries 2 the third failure ends the call, and the error says the spend may have happened and which key asks again.",
+      "operation": "spend",
+      "responses": [
+        { "repeat": 2, "status": 500, "json": { "error": { "code": "INTERNAL", "message": "Something went wrong on our side.", "requestId": "req_9a" } } },
+        { "status": 500, "json": { "error": { "code": "INTERNAL", "message": "Something went wrong on our side.", "requestId": "req_9c" } } }
+      ],
+      "expect": {
+        "requests": 3,
+        "key": "generated",
+        "sleeps": [{ "after": "INTERNAL", "backoff": 0 }, { "after": "INTERNAL", "backoff": 1 }],
+        "error": { "class": "api", "code": "INTERNAL", "status": 500, "retryable": true, "mayHaveSpent": true, "retryAfterSec": null, "requestId": "req_9c", "key": "generated" }
+      }
+    },
+    {
+      "name": "in-progress-until-the-deadline",
+      "why": "A spend still running when the deadline comes ends with IDEMPOTENCY_IN_PROGRESS and the key to ask again later.",
+      "operation": "spend",
+      "options": { "deadlineMs": 20000 },
+      "responses": [
+        { "repeat": 4, "status": 409, "headers": { "Retry-After": "5" }, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_10a" } } }
+      ],
+      "expect": {
+        "requests": 4,
+        "key": "generated",
+        "sleeps": [
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }
+        ],
+        "elapsedMs": 15000,
+        "error": { "class": "api", "code": "IDEMPOTENCY_IN_PROGRESS", "status": 409, "retryable": true, "mayHaveSpent": true, "retryAfterSec": 5, "requestId": "req_10a", "key": "generated" }
+      }
+    },
+    {
+      "name": "slow-handler-then-replay",
+      "why": "The server takes longer than one attempt: the first attempt times out, the retry finds the same key still running, waits, and receives the stored answer.",
+      "operation": "spend",
+      "responses": [
+        { "network": "hang" },
+        { "repeat": 2, "status": 409, "headers": { "Retry-After": "5" }, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_11b" } } },
+        { "status": 202, "headers": { "Idempotent-Replayed": "true" }, "json": { "job": { "id": "job_1", "status": "running", "finishedAt": null } } }
+      ],
+      "expect": {
+        "requests": 4,
+        "key": "generated",
+        "sleeps": [
+          { "after": "TIMEOUT", "backoff": 0 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 },
+          { "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }
+        ],
+        "result": { "status": 202 }
+      }
+    },
+    {
+      "name": "timeouts-until-the-deadline",
+      "why": "Three attempts of 60 seconds fill the 180-second deadline: the last attempt is cut to what is left, and the call ends exactly at the deadline.",
+      "operation": "spend",
+      "responses": [{ "repeat": 3, "network": "hang" }],
+      "expect": {
+        "requests": 3,
+        "key": "generated",
+        "sleeps": [{ "after": "TIMEOUT", "backoff": 0 }, { "after": "TIMEOUT", "backoff": 1 }],
+        "elapsedMs": 180000,
+        "error": { "class": "network", "code": "TIMEOUT", "status": null, "retryable": true, "mayHaveSpent": true, "retryAfterSec": null, "key": "generated" }
+      }
+    },
+    {
+      "name": "deadline-shortens-the-attempt",
+      "why": "An attempt never outlives the deadline, and no pause is taken that would end at it.",
+      "operation": "spend",
+      "options": { "deadlineMs": 30000 },
+      "responses": [{ "network": "hang" }],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "elapsedMs": 30000,
+        "error": { "class": "network", "code": "TIMEOUT", "status": null, "retryable": true, "mayHaveSpent": true, "retryAfterSec": null, "key": "generated" }
+      }
+    },
+    {
+      "name": "answer-just-before-the-timeout",
+      "why": "An answer one millisecond before the timeout is an answer.",
+      "operation": "read",
+      "options": { "timeoutMs": 10000 },
+      "responses": [{ "status": 200, "afterMs": 9999, "json": { "id": "prj_1" } }],
+      "expect": { "requests": 1, "key": "none", "sleeps": [], "elapsedMs": 9999, "result": { "status": 200 } }
+    },
+    {
+      "name": "answer-at-the-timeout",
+      "why": "An answer that arrives when the timeout passes is a timeout.",
+      "operation": "read",
+      "options": { "timeoutMs": 10000, "maxRetries": 0 },
+      "responses": [{ "status": 200, "afterMs": 10000, "json": { "id": "prj_1" } }],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "elapsedMs": 10000,
+        "error": { "class": "network", "code": "TIMEOUT", "status": null, "retryable": true, "mayHaveSpent": false, "retryAfterSec": null, "key": null }
+      }
+    },
+    {
+      "name": "timeout-on-a-read-is-retried",
+      "why": "A read that times out is sent again.",
+      "operation": "read",
+      "options": { "timeoutMs": 10000 },
+      "responses": [{ "network": "hang" }, { "status": 200, "json": { "id": "prj_1" } }],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "TIMEOUT", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "rate-limited-waits-retry-after",
+      "why": "RATE_LIMITED waits as long as Retry-After says.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "2" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_17a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "ms": 2000 }], "elapsedMs": 2000, "result": { "status": 200 } }
+    },
+    {
+      "name": "rate-limited-on-a-spend-before-anything-ran",
+      "why": "Three 429s on a spend end the call; the API refused each one before running anything, so nothing was charged.",
+      "operation": "spend",
+      "responses": [
+        { "repeat": 3, "status": 429, "headers": { "Retry-After": "1" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_17b" } } }
+      ],
+      "expect": {
+        "requests": 3,
+        "key": "generated",
+        "sleeps": [{ "after": "RATE_LIMITED", "ms": 1000 }, { "after": "RATE_LIMITED", "ms": 1000 }],
+        "elapsedMs": 2000,
+        "error": { "class": "api", "code": "RATE_LIMITED", "status": 429, "retryable": true, "mayHaveSpent": false, "retryAfterSec": 1, "requestId": "req_17b", "key": "generated" }
+      }
+    },
+    {
+      "name": "rate-limited-after-in-progress-may-have-spent",
+      "why": "The spend is still running on the server when the 429s come: a rate-limited request is refused before the key is looked at, so the last 429 says nothing about the charge, and the error must say it may have happened.",
+      "operation": "spend",
+      "responses": [
+        { "status": 409, "headers": { "Retry-After": "5" }, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_17c" } } },
+        { "repeat": 3, "status": 429, "headers": { "Retry-After": "1" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_17d" } } }
+      ],
+      "expect": {
+        "requests": 4,
+        "key": "generated",
+        "sleeps": [{ "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }, { "after": "RATE_LIMITED", "ms": 1000 }, { "after": "RATE_LIMITED", "ms": 1000 }],
+        "elapsedMs": 7000,
+        "error": { "class": "api", "code": "RATE_LIMITED", "status": 429, "retryable": true, "mayHaveSpent": true, "retryAfterSec": 1, "requestId": "req_17d", "key": "generated" }
+      }
+    },
+    {
+      "name": "rate-limited-after-a-timeout-may-have-spent",
+      "why": "A spend that timed out may be running or done on the server; the 429s that follow do not change that.",
+      "operation": "spend",
+      "options": { "timeoutMs": 10000 },
+      "responses": [
+        { "network": "hang" },
+        { "repeat": 2, "status": 429, "headers": { "Retry-After": "1" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_17e" } } }
+      ],
+      "expect": {
+        "requests": 3,
+        "key": "generated",
+        "sleeps": [{ "after": "TIMEOUT", "backoff": 0 }, { "after": "RATE_LIMITED", "ms": 1000 }],
+        "error": { "class": "api", "code": "RATE_LIMITED", "status": 429, "retryable": true, "mayHaveSpent": true, "retryAfterSec": 1, "requestId": "req_17e", "key": "generated" }
+      }
+    },
+    {
+      "name": "rate-limited-is-retried-even-when-unsafe",
+      "why": "The API refuses a rate-limited request before running anything, so even a call that is not retry-safe is sent again.",
+      "operation": "unsafe",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "1" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_18a" } } },
+        { "status": 200, "json": { "ok": true } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "ms": 1000 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "unsafe-server-error-is-not-retried",
+      "why": "A call that is not retry-safe could do its work twice, so a 500 ends it.",
+      "operation": "unsafe",
+      "responses": [{ "status": 500, "json": { "error": { "code": "INTERNAL", "message": "Something went wrong on our side.", "requestId": "req_19a" } } }],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "api", "code": "INTERNAL", "status": 500, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "requestId": "req_19a", "key": null }
+      }
+    },
+    {
+      "name": "unsafe-connection-failure-is-not-retried",
+      "why": "The same holds for a failed connection.",
+      "operation": "unsafe",
+      "responses": [{ "network": "connection_failed" }],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "network", "code": "CONNECTION_FAILED", "status": null, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "key": null }
+      }
+    },
+    {
+      "name": "connection-failure-on-a-read-is-retried",
+      "why": "A read whose connection failed is sent again.",
+      "operation": "read",
+      "responses": [{ "network": "connection_failed" }, { "status": 200, "json": { "id": "prj_1" } }],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "CONNECTION_FAILED", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "connection-failures-on-a-spend-give-up",
+      "why": "A spend whose connection keeps failing ends with the key and the warning that it may have been charged.",
+      "operation": "spend",
+      "responses": [{ "repeat": 3, "network": "connection_failed" }],
+      "expect": {
+        "requests": 3,
+        "key": "generated",
+        "sleeps": [{ "after": "CONNECTION_FAILED", "backoff": 0 }, { "after": "CONNECTION_FAILED", "backoff": 1 }],
+        "error": { "class": "network", "code": "CONNECTION_FAILED", "status": null, "retryable": true, "mayHaveSpent": true, "retryAfterSec": null, "key": "generated" }
+      }
+    },
+    {
+      "name": "daily-limit-is-not-retried",
+      "why": "DAILY_LIMIT_REACHED is a 429 that does not pass in seconds; its Retry-After is reported, not waited.",
+      "operation": "spend",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "3600" }, "json": { "error": { "code": "DAILY_LIMIT_REACHED", "message": "The daily limit of this key is reached.", "requestId": "req_23a" } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "error": { "class": "api", "code": "DAILY_LIMIT_REACHED", "status": 429, "retryable": false, "mayHaveSpent": false, "retryAfterSec": 3600, "requestId": "req_23a", "key": "generated" }
+      }
+    },
+    {
+      "name": "conflict-is-never-retried",
+      "why": "CONFLICT asks the caller to read again and decide; the SDK neither retries it nor makes a new key.",
+      "operation": "write",
+      "responses": [{ "status": 409, "json": { "error": { "code": "CONFLICT", "message": "The project changed since you read it.", "requestId": "req_24a" } } }],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "error": { "class": "api", "code": "CONFLICT", "status": 409, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "requestId": "req_24a", "key": "generated" }
+      }
+    },
+    {
+      "name": "key-reused-is-never-retried",
+      "why": "IDEMPOTENCY_KEY_REUSED means this key belongs to another request: the SDK stops and never swaps in a new key.",
+      "operation": "spend",
+      "responses": [
+        { "status": 422, "json": { "error": { "code": "IDEMPOTENCY_KEY_REUSED", "message": "This Idempotency-Key was used for a different request in the last 24 hours.", "requestId": "req_25a" } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "error": { "class": "api", "code": "IDEMPOTENCY_KEY_REUSED", "status": 422, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "requestId": "req_25a", "key": "generated" }
+      }
+    },
+    {
+      "name": "insufficient-credits-is-final",
+      "why": "A definite refusal never may have spent.",
+      "operation": "spend",
+      "responses": [{ "status": 402, "json": { "error": { "code": "INSUFFICIENT_CREDITS", "message": "Not enough credits.", "requestId": "req_26a" } } }],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "error": { "class": "api", "code": "INSUFFICIENT_CREDITS", "status": 402, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "requestId": "req_26a", "key": "generated" }
+      }
+    },
+    {
+      "name": "switched-off-is-not-retried",
+      "why": "An operation that is turned off stays off; sending it again does not help, and it was refused before anything ran.",
+      "operation": "spend",
+      "responses": [
+        { "status": 503, "json": { "error": { "code": "UNAVAILABLE", "message": "Importing from a link is not available yet.", "requestId": "req_27a", "details": { "reason": "switched_off" } } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "error": { "class": "api", "code": "UNAVAILABLE", "status": 503, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "requestId": "req_27a", "key": "generated" }
+      }
+    },
+    {
+      "name": "unavailable-waits-sixty-seconds",
+      "why": "A busy service says Retry-After: 60, and 60 is still waited.",
+      "operation": "read",
+      "responses": [
+        { "status": 503, "headers": { "Retry-After": "60" }, "json": { "error": { "code": "UNAVAILABLE", "message": "GPT-Video cannot take new work right now. Try again in a few minutes.", "requestId": "req_28a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "UNAVAILABLE", "ms": 60000 }], "elapsedMs": 60000, "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-over-sixty-is-not-waited",
+      "why": "61 seconds is over the limit: the call stops and reports the wait.",
+      "operation": "read",
+      "responses": [
+        { "status": 503, "headers": { "Retry-After": "61" }, "json": { "error": { "code": "UNAVAILABLE", "message": "GPT-Video cannot take new work right now. Try again in a few minutes.", "requestId": "req_29a" } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "api", "code": "UNAVAILABLE", "status": 503, "retryable": true, "mayHaveSpent": false, "retryAfterSec": 61, "requestId": "req_29a", "key": null }
+      }
+    },
+    {
+      "name": "unavailable-on-a-spend-may-have-spent",
+      "why": "A 5xx on a spend leaves the charge unknown, unless the operation is switched off.",
+      "operation": "spend",
+      "responses": [
+        { "status": 503, "headers": { "Retry-After": "61" }, "json": { "error": { "code": "UNAVAILABLE", "message": "GPT-Video cannot take new work right now. Try again in a few minutes.", "requestId": "req_30a" } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "error": { "class": "api", "code": "UNAVAILABLE", "status": 503, "retryable": true, "mayHaveSpent": true, "retryAfterSec": 61, "requestId": "req_30a", "key": "generated" }
+      }
+    },
+    {
+      "name": "retry-after-past-the-deadline",
+      "why": "A wait that would end at the deadline is not taken.",
+      "operation": "read",
+      "options": { "deadlineMs": 30000 },
+      "responses": [
+        { "status": 503, "headers": { "Retry-After": "30" }, "json": { "error": { "code": "UNAVAILABLE", "message": "GPT-Video cannot take new work right now. Try again in a few minutes.", "requestId": "req_31a" } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "elapsedMs": 0,
+        "error": { "class": "api", "code": "UNAVAILABLE", "status": 503, "retryable": true, "mayHaveSpent": false, "retryAfterSec": 30, "requestId": "req_31a", "key": null }
+      }
+    },
+    {
+      "name": "retry-after-http-date",
+      "why": "Retry-After can be a date: seven seconds from now is a seven-second wait.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "Sun, 11 Oct 2026 12:00:07 GMT" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_32a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "ms": 7000 }], "elapsedMs": 7000, "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-date-rounds-up",
+      "why": "6.6 seconds to the date is a 7-second wait: rounding down would arrive early.",
+      "operation": "read",
+      "now": "2026-10-11T12:00:00.400Z",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "Sun, 11 Oct 2026 12:00:07 GMT" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_33a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "ms": 7000 }], "elapsedMs": 7000, "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-date-in-the-past",
+      "why": "A date in the past counts as absent: back off instead.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "Sun, 11 Oct 2026 11:59:00 GMT" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_34a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-date-too-far",
+      "why": "A date five minutes away is a 300-second wait, over the limit.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "Sun, 11 Oct 2026 12:05:00 GMT" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_35a" } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "api", "code": "RATE_LIMITED", "status": 429, "retryable": true, "mayHaveSpent": false, "retryAfterSec": 300, "requestId": "req_35a", "key": null }
+      }
+    },
+    {
+      "name": "retry-after-impossible-date",
+      "why": "30 November has no day 31: the header counts as absent instead of rolling over to 1 December.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "Tue, 31 Nov 2026 12:00:00 GMT" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_36a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-obsolete-date-format",
+      "why": "Only the IMF-fixdate form is read; the old RFC 850 form counts as absent.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "Sunday, 11-Oct-26 12:00:07 GMT" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_37a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-negative",
+      "why": "-1 is not a number of seconds.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "-1" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_38a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-not-a-number",
+      "why": "abc is not a number of seconds.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "abc" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_39a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-exponent",
+      "why": "1e9 is not ASCII digits, so it counts as absent instead of as a billion seconds.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "1e9" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_40a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-decimal",
+      "why": "1.5 is not whole seconds.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "1.5" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_41a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "backoff": 0 }], "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-huge",
+      "why": "A billion seconds is readable and over the limit: the call stops and says so.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "1000000000" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_42a" } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "api", "code": "RATE_LIMITED", "status": 429, "retryable": true, "mayHaveSpent": false, "retryAfterSec": 1000000000, "requestId": "req_42a", "key": null }
+      }
+    },
+    {
+      "name": "retry-after-zero",
+      "why": "0 is a readable wait of no time, not an absent header.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": "0" }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_43a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "ms": 0 }], "elapsedMs": 0, "result": { "status": 200 } }
+    },
+    {
+      "name": "retry-after-with-spaces",
+      "why": "Spaces around the value are trimmed.",
+      "operation": "read",
+      "responses": [
+        { "status": 429, "headers": { "Retry-After": " 3 " }, "json": { "error": { "code": "RATE_LIMITED", "message": "Too many requests.", "requestId": "req_44a" } } },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "RATE_LIMITED", "ms": 3000 }], "elapsedMs": 3000, "result": { "status": 200 } }
+    },
+    {
+      "name": "html-502-on-a-read-is-retried",
+      "why": "A proxy's HTML error page with a 5xx is BAD_RESPONSE, retried, and its Retry-After is read.",
+      "operation": "read",
+      "responses": [
+        { "status": 502, "headers": { "Content-Type": "text/html", "Retry-After": "2" }, "text": "<html><body>Bad gateway</body></html>" },
+        { "status": 200, "json": { "id": "prj_1" } }
+      ],
+      "expect": { "requests": 2, "key": "none", "sleeps": [{ "after": "BAD_RESPONSE", "ms": 2000 }], "elapsedMs": 2000, "result": { "status": 200 } }
+    },
+    {
+      "name": "html-502-on-a-spend-gives-up",
+      "why": "Three HTML 502s end a spend with BAD_RESPONSE, its status, and the warning that it may have been charged.",
+      "operation": "spend",
+      "responses": [{ "repeat": 3, "status": 502, "headers": { "Content-Type": "text/html" }, "text": "<html><body>Bad gateway</body></html>" }],
+      "expect": {
+        "requests": 3,
+        "key": "generated",
+        "sleeps": [{ "after": "BAD_RESPONSE", "backoff": 0 }, { "after": "BAD_RESPONSE", "backoff": 1 }],
+        "error": { "class": "network", "code": "BAD_RESPONSE", "status": 502, "retryable": true, "mayHaveSpent": true, "retryAfterSec": null, "key": "generated" }
+      }
+    },
+    {
+      "name": "html-403-is-not-retried",
+      "why": "A firewall's HTML 403 is BAD_RESPONSE and final.",
+      "operation": "read",
+      "responses": [{ "status": 403, "headers": { "Content-Type": "text/html" }, "text": "<html><body>Forbidden</body></html>" }],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "network", "code": "BAD_RESPONSE", "status": 403, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "key": null }
+      }
+    },
+    {
+      "name": "redirect-is-not-followed",
+      "why": "Following a redirect would carry the API key to another address: a 3xx is BAD_RESPONSE.",
+      "operation": "read",
+      "responses": [{ "status": 302, "headers": { "Location": "https://example.com/v1/projects/prj_1" }, "text": "" }],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "network", "code": "BAD_RESPONSE", "status": 302, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "key": null }
+      }
+    },
+    {
+      "name": "unreadable-success-on-a-spend",
+      "why": "A 2xx that is not JSON may hide a charge: the error says so and gives the key.",
+      "operation": "spend",
+      "responses": [{ "status": 200, "headers": { "Content-Type": "text/plain" }, "text": "OK" }],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "error": { "class": "network", "code": "BAD_RESPONSE", "status": 200, "retryable": false, "mayHaveSpent": true, "retryAfterSec": null, "key": "generated" }
+      }
+    },
+    {
+      "name": "json-error-without-a-code",
+      "why": "JSON that is not the API's error body is BAD_RESPONSE.",
+      "operation": "read",
+      "responses": [{ "status": 400, "json": { "message": "Bad request" } }],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "network", "code": "BAD_RESPONSE", "status": 400, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "key": null }
+      }
+    },
+    {
+      "name": "unknown-code-is-not-retried",
+      "why": "A code from a newer API is reported as it is and never retried.",
+      "operation": "read",
+      "responses": [{ "status": 400, "json": { "error": { "code": "SOMETHING_NEW", "message": "A new kind of refusal.", "requestId": "req_51a" } } }],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "api", "code": "SOMETHING_NEW", "status": 400, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "requestId": "req_51a", "key": null }
+      }
+    },
+    {
+      "name": "unknown-code-with-500-on-a-spend",
+      "why": "An unknown code is not retried, but its 5xx status still leaves the charge of a spend unknown.",
+      "operation": "spend",
+      "responses": [{ "status": 500, "json": { "error": { "code": "SOMETHING_NEW", "message": "A new kind of failure.", "requestId": "req_52a" } } }],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "error": { "class": "api", "code": "SOMETHING_NEW", "status": 500, "retryable": false, "mayHaveSpent": true, "retryAfterSec": null, "requestId": "req_52a", "key": "generated" }
+      }
+    },
+    {
+      "name": "aborted-while-a-spend-is-sent",
+      "why": "The caller aborts a spend that left the client: it is not retried, and it may have been charged.",
+      "operation": "spend",
+      "options": { "abortAfterMs": 1000 },
+      "responses": [{ "network": "hang" }],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [],
+        "elapsedMs": 1000,
+        "error": { "class": "network", "code": "ABORTED", "status": null, "retryable": false, "mayHaveSpent": true, "retryAfterSec": null, "key": "generated" }
+      }
+    },
+    {
+      "name": "aborted-during-a-wait",
+      "why": "A wait ends when the caller aborts; the spend before it is still running, so it may be charged.",
+      "operation": "spend",
+      "options": { "abortAfterMs": 100 },
+      "responses": [
+        { "status": 409, "headers": { "Retry-After": "5" }, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_54a" } } }
+      ],
+      "expect": {
+        "requests": 1,
+        "key": "generated",
+        "sleeps": [{ "after": "IDEMPOTENCY_IN_PROGRESS", "ms": 5000 }],
+        "elapsedMs": 100,
+        "error": { "class": "network", "code": "ABORTED", "status": null, "retryable": false, "mayHaveSpent": true, "retryAfterSec": null, "key": "generated" }
+      }
+    },
+    {
+      "name": "aborted-before-the-first-request",
+      "why": "A signal already aborted sends nothing, so nothing was charged; the call still had its key.",
+      "operation": "spend",
+      "options": { "abortedBeforeStart": true },
+      "responses": [],
+      "expect": {
+        "requests": 0,
+        "sleeps": [],
+        "elapsedMs": 0,
+        "error": { "class": "network", "code": "ABORTED", "status": null, "retryable": false, "mayHaveSpent": false, "retryAfterSec": null, "key": "generated" }
+      }
+    },
+    {
+      "name": "not-ready-waits",
+      "why": "NOT_READY means something the call needs is still being prepared: wait as told, then ask again.",
+      "operation": "write",
+      "responses": [
+        { "status": 409, "headers": { "Retry-After": "10" }, "json": { "error": { "code": "NOT_READY", "message": "The clip is not ready yet.", "requestId": "req_56a" } } },
+        { "status": 200, "json": { "clip": { "id": "clp_1" } } }
+      ],
+      "expect": { "requests": 2, "key": "generated", "sleeps": [{ "after": "NOT_READY", "ms": 10000 }], "elapsedMs": 10000, "result": { "status": 200 } }
+    },
+    {
+      "name": "not-ready-gives-up",
+      "why": "NOT_READY counts as a failure, so three of them end the call.",
+      "operation": "write",
+      "responses": [
+        { "repeat": 3, "status": 409, "headers": { "Retry-After": "10" }, "json": { "error": { "code": "NOT_READY", "message": "The clip is not ready yet.", "requestId": "req_57a" } } }
+      ],
+      "expect": {
+        "requests": 3,
+        "key": "generated",
+        "sleeps": [{ "after": "NOT_READY", "ms": 10000 }, { "after": "NOT_READY", "ms": 10000 }],
+        "elapsedMs": 20000,
+        "error": { "class": "api", "code": "NOT_READY", "status": 409, "retryable": true, "mayHaveSpent": false, "retryAfterSec": 10, "requestId": "req_57a", "key": "generated" }
+      }
+    },
+    {
+      "name": "in-progress-without-retry-after",
+      "why": "Without Retry-After the wait is a backoff.",
+      "operation": "spend",
+      "responses": [
+        { "status": 409, "json": { "error": { "code": "IDEMPOTENCY_IN_PROGRESS", "message": "A request with this Idempotency-Key is still running.", "requestId": "req_58a" } } },
+        { "status": 202, "json": { "job": { "id": "job_1", "status": "queued", "finishedAt": null } } }
+      ],
+      "expect": { "requests": 2, "key": "generated", "sleeps": [{ "after": "IDEMPOTENCY_IN_PROGRESS", "backoff": 0 }], "result": { "status": 202 } }
+    },
+    {
+      "name": "upstream-failure-is-retried",
+      "why": "UPSTREAM_FAILED is retried like INTERNAL.",
+      "operation": "spend",
+      "responses": [
+        { "status": 502, "json": { "error": { "code": "UPSTREAM_FAILED", "message": "A service we depend on failed.", "requestId": "req_59a" } } },
+        { "status": 202, "json": { "job": { "id": "job_1", "status": "queued", "finishedAt": null } } }
+      ],
+      "expect": { "requests": 2, "key": "generated", "sleeps": [{ "after": "UPSTREAM_FAILED", "backoff": 0 }], "result": { "status": 202 } }
+    },
+    {
+      "name": "no-retries-at-all",
+      "why": "maxRetries: 0 stops at the first failure, which stays retryable for the caller.",
+      "operation": "read",
+      "options": { "maxRetries": 0 },
+      "responses": [{ "status": 500, "json": { "error": { "code": "INTERNAL", "message": "Something went wrong on our side.", "requestId": "req_60a" } } }],
+      "expect": {
+        "requests": 1,
+        "key": "none",
+        "sleeps": [],
+        "error": { "class": "api", "code": "INTERNAL", "status": 500, "retryable": true, "mayHaveSpent": false, "retryAfterSec": null, "requestId": "req_60a", "key": null }
+      }
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+name: Publish
+
+# One package per run, started by hand. Nothing here runs on a push, a pull request or a schedule.
+# Run it first with dry_run on (the default), read the log, then run it again with dry_run off.
+#
+# The jobs that run other people's code (npm install, the tests, the build) have no secret and no
+# id-token permission. They hand the package they built and tested to the publishing job as an
+# artifact. The jobs that publish have the permission (and the npm token, if one is set), run no
+# checkout, no install and no package script, and only run on main, inside a GitHub environment
+# with its own rules.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish. The value is also the folder name.
+        required: true
+        type: choice
+        options:
+          - js
+          - n8n
+          - mcp-bridge
+          - python
+      dry_run:
+        description: Check everything and publish nothing
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  verify-npm:
+    name: Verify (npm)
+    if: ${{ inputs.package != 'python' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the package name
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          case "$PACKAGE" in
+            js|n8n|mcp-bridge) ;;
+            *) echo "Unknown package: $PACKAGE" >&2; exit 1 ;;
+          esac
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Install the development tools without running install scripts
+        working-directory: ${{ inputs.package }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci --ignore-scripts --no-audit --no-fund; else npm install --ignore-scripts --no-audit --no-fund; fi
+      - name: Typecheck
+        if: ${{ inputs.package != 'mcp-bridge' }}
+        working-directory: ${{ inputs.package }}
+        run: npm run --if-present typecheck
+      - name: Test
+        if: ${{ inputs.package != 'mcp-bridge' }}
+        working-directory: ${{ inputs.package }}
+        run: npm run --if-present test
+      - name: Pack the tarball, list its files
+        working-directory: ${{ inputs.package }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-package"
+          npm pack --pack-destination "$RUNNER_TEMP/npm-package"
+      - name: Dry run of the publish, on that tarball
+        run: |
+          set -- "$RUNNER_TEMP"/npm-package/*.tgz
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then echo "Expected exactly one tarball" >&2; exit 1; fi
+          npm publish "$1" --dry-run --access public --ignore-scripts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/npm-package/
+          if-no-files-found: error
+
+  # Publishes the tarball verify-npm packed and tested, byte for byte. This job checks out nothing,
+  # installs nothing and runs no package script: the only program it runs is npm itself.
+  publish-npm:
+    name: Publish (npm)
+    needs: verify-npm
+    if: ${{ inputs.package != 'python' && !inputs.dry_run && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-package
+          path: npm-package/
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Check the npm version
+        run: |
+          v=$(npm --version)
+          echo "npm $v"
+          node -e 'const [a,b,c]=process.argv[1].split(".").map(Number); process.exit(a>11||(a===11&&(b>5||(b===5&&c>=1)))?0:1)' "$v"
+      - name: Publish the tested tarball with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -- npm-package/*.tgz
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then echo "Expected exactly one tarball" >&2; exit 1; fi
+          npm publish "$1" --provenance --access public --ignore-scripts
+
+  build-python:
+    name: Build (Python)
+    if: ${{ inputs.package == 'python' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Install the build tools
+        run: python -m pip install build twine
+      - name: Test
+        working-directory: python
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -t .
+      - name: Build
+        working-directory: python
+        run: python -m build
+      - name: Check the files
+        working-directory: python
+        run: python -m twine check dist/*
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-dist
+          path: python/dist/
+          if-no-files-found: error
+
+  publish-python:
+    name: Publish (PyPI)
+    needs: build-python
+    if: ${{ inputs.package == 'python' && !inputs.dry_run && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: python-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist/

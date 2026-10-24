@@ -1,0 +1,56 @@
+{
+  "name": "gpt-video",
+  "version": "1.0.0",
+  "description": "The official JavaScript and TypeScript SDK for the GPT-Video API: upload a video, find clips, export them.",
+  "license": "MIT",
+  "homepage": "https://www.gpt-video.com/developers",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gptvideo/gpt-video-sdks.git",
+    "directory": "js"
+  },
+  "bugs": {
+    "url": "https://github.com/gptvideo/gpt-video-sdks/issues"
+  },
+  "author": {
+    "name": "GPT-Video",
+    "email": "hello@gpt-video.com"
+  },
+  "keywords": [
+    "gpt-video",
+    "video",
+    "video-editing",
+    "clips",
+    "captions",
+    "api",
+    "sdk"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.mjs",
+    "./webhooks": "./src/webhooks.mjs"
+  },
+  "files": [
+    "src/*.mjs",
+    "src/*.d.ts",
+    "src/*.d.mts",
+    "!src/*.test.mjs",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.lib.json",
+    "test": "vitest run",
+    "prepack": "tsc -p tsconfig.dts.json",
+    "postpack": "node -e \"const fs = require('node:fs'); for (const f of fs.readdirSync('src')) if (f.endsWith('.d.mts')) fs.rmSync('src/' + f)\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

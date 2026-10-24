@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-gpt-video.gptVideoTrigger",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Marketing & Content"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://www.gpt-video.com/developers/webhooks"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://www.gpt-video.com/developers/webhooks"
+			}
+		]
+	}
+}

@@ -1,0 +1,10 @@
+{
+  "$comment": "The files of this folder that are generated from the GPT-Video API catalogue. Each one is written again, whole, at every generation, and none is edited by hand.",
+  "files": [
+    "client.generated.mjs",
+    "errors.generated.mjs",
+    "mcp-names.generated.json",
+    "operations.generated.mjs",
+    "types.generated.d.ts"
+  ]
+}

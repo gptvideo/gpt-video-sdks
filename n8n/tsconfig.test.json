@@ -1,0 +1,10 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"noEmit": true,
+		"noUnusedLocals": false
+	},
+	"include": ["credentials/**/*", "nodes/**/*", "test/**/*.mts"]
+}

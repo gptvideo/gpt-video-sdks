@@ -1,0 +1,1426 @@
+{
+  "about": [
+    "Signed GPT-Video webhooks, valid and invalid, that every GPT-Video SDK must verify the same way. Generated: do not edit.",
+    "secrets holds standard base64 without the whsec_ prefix: the secret a receiver holds is secretPrefix followed by it. secretNames lists the secrets of the receiver (several during a rotation on its side); when secretText is not null, it is the whole secret instead.",
+    "The body is body (text), bodyBase64 (bytes that are not UTF-8, passed as bytes) or bodyParsed (an object, which must be refused). A case with body runs twice: with the text, and with its UTF-8 bytes.",
+    "headers are passed as they are: names in any case, values that are a string or a list of strings. A list of signature values is one list of signatures.",
+    "nowSec is the current time in seconds; toleranceSec is null for the default, defaultToleranceSec. The tolerance compares whole seconds: the current time rounded down to the second, against the timestamp, in both directions.",
+    "expect is the answer: ok with the id and timestamp, or the reason of the refusal.",
+    "reference is the answer of the GPT-Video server's own reference check, or null when it cannot take that input. Whatever it accepts, an SDK accepts; an SDK also accepts a missing = padding, unused base64 bits, header names in any case, header values as lists, and its own tolerance."
+  ],
+  "secretPrefix": "whsec_",
+  "defaultToleranceSec": 300,
+  "secrets": {
+    "spec": "MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+    "current": "CzBVep/E6Q4zWH2ix+wRNluApcrvFDle",
+    "previous": "ZYqv1PkeQ2iNstf8IUZrkLXa/yRJbpO4",
+    "unrelated": "y/AVOl+Eqc7zGD1ih6zR9htAZYqv1Pke",
+    "unpadded": "O2CFqs/0GT5jiK3S9xxBZouw1fofRGmOsw"
+  },
+  "cases": [
+    {
+      "name": "the specification's vector",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "a delivery as the server sends it",
+      "secretNames": [
+        "current"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "wev_32aeca77d094a0e08a11",
+        "webhook-timestamp": "1767225600",
+        "webhook-signature": "v1,Iwq5rYZSRX5WTPQCOuTBIhX+qjWD3HwuqzbhZFCvYR4="
+      },
+      "body": "{\"type\":\"job.completed\",\"timestamp\":\"2026-09-01T09:40:00.000Z\",\"data\":{\"jobId\":\"job_6c1e8b4a2f0d4a97e3b5\",\"kind\":\"analysis\",\"projectId\":\"prj_7c2e9a4f1b3d4e8096a5\",\"compositionId\":null,\"exportId\":null,\"assetId\":null,\"toolRunId\":null,\"turnId\":null}}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1767225600,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "wev_32aeca77d094a0e08a11",
+        "timestamp": 1767225600
+      },
+      "reference": true
+    },
+    {
+      "name": "a delivery during a rotation, verified with the previous secret",
+      "secretNames": [
+        "previous"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "wev_32aeca77d094a0e08a11",
+        "webhook-timestamp": "1767225600",
+        "webhook-signature": "v1,Iwq5rYZSRX5WTPQCOuTBIhX+qjWD3HwuqzbhZFCvYR4= v1,cYsDD7M575pvrvCyHbcU1X4W5ofhxTAI3NFwWEKIGjg="
+      },
+      "body": "{\"type\":\"job.completed\",\"timestamp\":\"2026-09-01T09:40:00.000Z\",\"data\":{\"jobId\":\"job_6c1e8b4a2f0d4a97e3b5\",\"kind\":\"analysis\",\"projectId\":\"prj_7c2e9a4f1b3d4e8096a5\",\"compositionId\":null,\"exportId\":null,\"assetId\":null,\"toolRunId\":null,\"turnId\":null}}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1767225600,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "wev_32aeca77d094a0e08a11",
+        "timestamp": 1767225600
+      },
+      "reference": true
+    },
+    {
+      "name": "a delivery during a rotation, verified with the current secret",
+      "secretNames": [
+        "current"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "wev_32aeca77d094a0e08a11",
+        "webhook-timestamp": "1767225600",
+        "webhook-signature": "v1,Iwq5rYZSRX5WTPQCOuTBIhX+qjWD3HwuqzbhZFCvYR4= v1,cYsDD7M575pvrvCyHbcU1X4W5ofhxTAI3NFwWEKIGjg="
+      },
+      "body": "{\"type\":\"job.completed\",\"timestamp\":\"2026-09-01T09:40:00.000Z\",\"data\":{\"jobId\":\"job_6c1e8b4a2f0d4a97e3b5\",\"kind\":\"analysis\",\"projectId\":\"prj_7c2e9a4f1b3d4e8096a5\",\"compositionId\":null,\"exportId\":null,\"assetId\":null,\"toolRunId\":null,\"turnId\":null}}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1767225600,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "wev_32aeca77d094a0e08a11",
+        "timestamp": 1767225600
+      },
+      "reference": true
+    },
+    {
+      "name": "a receiver holding two secrets, the second one right",
+      "secretNames": [
+        "unrelated",
+        "current"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "wev_32aeca77d094a0e08a11",
+        "webhook-timestamp": "1767225600",
+        "webhook-signature": "v1,Iwq5rYZSRX5WTPQCOuTBIhX+qjWD3HwuqzbhZFCvYR4="
+      },
+      "body": "{\"type\":\"job.completed\",\"timestamp\":\"2026-09-01T09:40:00.000Z\",\"data\":{\"jobId\":\"job_6c1e8b4a2f0d4a97e3b5\",\"kind\":\"analysis\",\"projectId\":\"prj_7c2e9a4f1b3d4e8096a5\",\"compositionId\":null,\"exportId\":null,\"assetId\":null,\"toolRunId\":null,\"turnId\":null}}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1767225600,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "wev_32aeca77d094a0e08a11",
+        "timestamp": 1767225600
+      },
+      "reference": true
+    },
+    {
+      "name": "300 seconds after the timestamp",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265630,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "300 seconds before the timestamp",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265030,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "the specification's list of several signatures, one of them right",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,Ceo5qEr07ixe2NLpvHk3FH9bwy/WavXrAFQ/9tdO6mc= v2,Ceo5qEr07ixe2NLpvHk3FH9bwy/WavXrAFQ/9tdO6mc= v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE= v1,Ceo5qEr07ixe2NLpvHk3FH9bwy/WavXrAFQ/9tdO6mc="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "a signature without its = padding",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE"
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": false
+    },
+    {
+      "name": "a signature whose last character differs only in bits base64 does not use",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OF="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": false
+    },
+    {
+      "name": "header names in mixed case",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "Webhook-Id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "WEBHOOK-TIMESTAMP": "1614265330",
+        "Webhook-Signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": false
+    },
+    {
+      "name": "header values as arrays, the signatures split across two values",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": [
+          "v1,Ceo5qEr07ixe2NLpvHk3FH9bwy/WavXrAFQ/9tdO6mc=",
+          "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+        ]
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": null
+    },
+    {
+      "name": "two signature headers joined with a comma and a space",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,Ceo5qEr07ixe2NLpvHk3FH9bwy/WavXrAFQ/9tdO6mc=, v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "signatures separated by two spaces",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,Ceo5qEr07ixe2NLpvHk3FH9bwy/WavXrAFQ/9tdO6mc=  v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "a signature followed by a comma and more text",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=,more"
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "a timestamp with a leading zero",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "01614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "a body with characters outside ASCII",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,bl48YwghCdmI1IvUbcJLKGqjcazXbC/K2PpOl/Ir1JU="
+      },
+      "body": "{\"note\":\"café 😀 – ok\"}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "a body of bytes that are not UTF-8",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,TqAmV1jYS127yekecY9S0PrTXu8l9faEKN6O0uwWxgs="
+      },
+      "body": null,
+      "bodyBase64": "eyJiIjoi//7DIn0=",
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": null
+    },
+    {
+      "name": "an empty body",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,v48jdbgvh29KJz2Qc+ghw8G6vG3nAKnujWBg8oM/62A="
+      },
+      "body": "",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "a secret written without its = padding",
+      "secretNames": [
+        "unpadded"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,b1DcAZJREJgAlEBrvNwVyqFcOK3siBLTnMUnjUkbb6I="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": true
+    },
+    {
+      "name": "a tolerance of 900 seconds, 600 seconds after the timestamp",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265930,
+      "toleranceSec": 900,
+      "expect": {
+        "ok": true,
+        "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "timestamp": 1614265330
+      },
+      "reference": false
+    },
+    {
+      "name": "another secret",
+      "secretNames": [
+        "unrelated"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "a delivery during a rotation, verified with a secret it was not signed with",
+      "secretNames": [
+        "unrelated"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "wev_32aeca77d094a0e08a11",
+        "webhook-timestamp": "1767225600",
+        "webhook-signature": "v1,Iwq5rYZSRX5WTPQCOuTBIhX+qjWD3HwuqzbhZFCvYR4= v1,cYsDD7M575pvrvCyHbcU1X4W5ofhxTAI3NFwWEKIGjg="
+      },
+      "body": "{\"type\":\"job.completed\",\"timestamp\":\"2026-09-01T09:40:00.000Z\",\"data\":{\"jobId\":\"job_6c1e8b4a2f0d4a97e3b5\",\"kind\":\"analysis\",\"projectId\":\"prj_7c2e9a4f1b3d4e8096a5\",\"compositionId\":null,\"exportId\":null,\"assetId\":null,\"toolRunId\":null,\"turnId\":null}}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1767225600,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "one byte of the body changed",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232315}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the same JSON written without the space",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\":2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "another id",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJekx",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "another timestamp inside the tolerance",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265331",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "301 seconds after the timestamp",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265631,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "timestamp_outside_tolerance"
+      },
+      "reference": false
+    },
+    {
+      "name": "301 seconds before the timestamp",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265029,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "timestamp_outside_tolerance"
+      },
+      "reference": false
+    },
+    {
+      "name": "a timestamp of twenty digits",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "99999999999999999999",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "timestamp_outside_tolerance"
+      },
+      "reference": false
+    },
+    {
+      "name": "a timestamp that is a word",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "hello",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_timestamp"
+      },
+      "reference": false
+    },
+    {
+      "name": "a timestamp with a space before it",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": " 1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_timestamp"
+      },
+      "reference": false
+    },
+    {
+      "name": "a timestamp with a space after it",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330 ",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_timestamp"
+      },
+      "reference": false
+    },
+    {
+      "name": "a timestamp with decimals",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330.0",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_timestamp"
+      },
+      "reference": false
+    },
+    {
+      "name": "a negative timestamp",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "-1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_timestamp"
+      },
+      "reference": false
+    },
+    {
+      "name": "a timestamp with a plus sign",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "+1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_timestamp"
+      },
+      "reference": false
+    },
+    {
+      "name": "a timestamp in exponent form",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1.614265330e9",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_timestamp"
+      },
+      "reference": false
+    },
+    {
+      "name": "no webhook-id header",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "missing_headers"
+      },
+      "reference": false
+    },
+    {
+      "name": "no webhook-timestamp header",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "missing_headers"
+      },
+      "reference": false
+    },
+    {
+      "name": "no webhook-signature header",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330"
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "missing_headers"
+      },
+      "reference": false
+    },
+    {
+      "name": "an empty webhook-id",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "missing_headers"
+      },
+      "reference": false
+    },
+    {
+      "name": "two different webhook-id values",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": [
+          "msg_p5jXN8AQM9LWM0D4loKWxJek",
+          "msg_p5jXN8AQM9LWM0D4loKWxJekx"
+        ],
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "missing_headers"
+      },
+      "reference": null
+    },
+    {
+      "name": "two different webhook-timestamp values",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": [
+          "1614265330",
+          "1614265331"
+        ],
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_timestamp"
+      },
+      "reference": null
+    },
+    {
+      "name": "the right signature under the v1a scheme",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1a,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the right signature under the v2 scheme",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v2,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the right signature under V1 in capitals",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "V1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the right signature with no scheme",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "an empty v1 signature",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,"
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the specification's truncated signature",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9"
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the specification's invalid signature",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,dawfeoifkpqwoekfpqoekf"
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the first 31 bytes of the right signature",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1A=="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the right signature followed by one more byte",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OEA"
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the right signature in base64url",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE-OTPJTGt_tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the right signature with one = too many",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "the right signature with = in front",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,=g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE"
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "several signatures, none of them right",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,Ceo5qEr07ixe2NLpvHk3FH9bwy/WavXrAFQ/9tdO6mc= v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1A== v2,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "no_matching_signature"
+      },
+      "reference": false
+    },
+    {
+      "name": "a secret without whsec_",
+      "secretNames": [],
+      "secretText": "MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_secret"
+      },
+      "reference": null
+    },
+    {
+      "name": "an API key in place of the secret",
+      "secretNames": [],
+      "secretText": "gvk_example",
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_secret"
+      },
+      "reference": null
+    },
+    {
+      "name": "an empty secret",
+      "secretNames": [],
+      "secretText": "",
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_secret"
+      },
+      "reference": null
+    },
+    {
+      "name": "whsec_ and nothing after it",
+      "secretNames": [],
+      "secretText": "whsec_",
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_secret"
+      },
+      "reference": null
+    },
+    {
+      "name": "a secret that is not base64",
+      "secretNames": [],
+      "secretText": "whsec_not base64!",
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_secret"
+      },
+      "reference": null
+    },
+    {
+      "name": "a secret in base64url",
+      "secretNames": [],
+      "secretText": "whsec_ab-_",
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": "{\"test\": 2432232314}",
+      "bodyBase64": null,
+      "bodyParsed": null,
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "bad_secret"
+      },
+      "reference": null
+    },
+    {
+      "name": "a body that was already parsed",
+      "secretNames": [
+        "spec"
+      ],
+      "secretText": null,
+      "headers": {
+        "webhook-id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+        "webhook-timestamp": "1614265330",
+        "webhook-signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE="
+      },
+      "body": null,
+      "bodyBase64": null,
+      "bodyParsed": {
+        "test": 2432232314
+      },
+      "nowSec": 1614265330,
+      "toleranceSec": null,
+      "expect": {
+        "ok": false,
+        "reason": "body_not_raw"
+      },
+      "reference": null
+    }
+  ]
+}

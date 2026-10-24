@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gpt-video"
+dynamic = ["version"]
+description = "Python client for the GPT-Video API: upload a video, find its clips, edit and export them."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "GPT-Video", email = "hello@gpt-video.com" }]
+keywords = ["gpt-video", "video", "clips", "api", "sdk"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Multimedia :: Video",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[tool.hatch.version]
+path = "src/gpt_video/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpt_video"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/gpt_video", "README.md", "LICENSE"]
+
+[project.urls]
+Homepage = "https://www.gpt-video.com/developers"
+Repository = "https://github.com/gptvideo/gpt-video-sdks"
+Issues = "https://github.com/gptvideo/gpt-video-sdks/issues"

@@ -1,0 +1,8 @@
+{
+  "$comment": "The files of this package that are generated from the GPT-Video API catalogue. Each one is written again, whole, at every generation, and none is edited by hand.",
+  "files": [
+    "nodes/GptVideo/operations.generated.ts",
+    "nodes/GptVideo/properties.generated.ts",
+    "nodes/GptVideoTrigger/events.generated.ts"
+  ]
+}
