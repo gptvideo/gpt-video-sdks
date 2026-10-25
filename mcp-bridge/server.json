@@ -3,7 +3,7 @@
   "name": "com.gpt-video/gpt-video-full",
   "title": "GPT-Video Full",
   "description": "The whole GPT-Video catalogue: clips, split screen, streamer, fake text, voiceovers, timeline.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "websiteUrl": "https://www.gpt-video.com/developers/mcp",
   "remotes": [
     {
@@ -32,7 +32,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "gpt-video-mcp",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "transport": { "type": "stdio" },
       "packageArguments": [{ "type": "named", "name": "--edition", "value": "full" }],
       "environmentVariables": [

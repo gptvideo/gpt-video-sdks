@@ -258,7 +258,7 @@ On MCP a tool that spends needs `confirm: true`. The SDK has no such argument: c
 
 ## Versions
 
-Version 1.0.0 of the SDK calls version 1 of the API. The answers come back as the API sends them, so a field the API adds reaches your code before the SDK knows it. [CHANGELOG.md](CHANGELOG.md) lists the changes.
+Version 1.0.1 of the SDK calls version 1 of the API. The answers come back as the API sends them, so a field the API adds reaches your code before the SDK knows it. [CHANGELOG.md](CHANGELOG.md) lists the changes.
 
 Questions: hello@gpt-video.com. The API documentation: https://www.gpt-video.com/developers.
 

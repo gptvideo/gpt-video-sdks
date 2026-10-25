@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+No changes to the code. The version number moves with the other GPT-Video SDKs.
+
 ## 1.0.0
 
 The first version, for version 1 of the GPT-Video API.

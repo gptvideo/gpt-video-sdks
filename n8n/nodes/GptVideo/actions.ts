@@ -19,7 +19,7 @@ import type { FieldSpec } from './transport/table.ts';
 import { uploadFile } from './transport/upload.ts';
 
 /** The version of this package. A test ties it to package.json. */
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.1';
 
 /** The User-Agent of every request: the request log of the API counts it as an automation tool. */
 export const USER_AGENT = `n8n-nodes-gpt-video/${VERSION}`;

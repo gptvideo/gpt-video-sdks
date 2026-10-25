@@ -1,6 +1,6 @@
 {
   "name": "gpt-video",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The official JavaScript and TypeScript SDK for the GPT-Video API: upload a video, find clips, export them.",
   "license": "MIT",
   "homepage": "https://www.gpt-video.com/developers",

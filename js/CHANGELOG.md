@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+No changes to the code. This version is published from GitHub Actions with npm Trusted Publishing, so npm shows where it was built.
+
 ## 1.0.0
 
 The first version, for version 1 of the GPT-Video API.

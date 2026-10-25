@@ -31,7 +31,7 @@
 const NEWLINE = "\n";
 
 /** The version of this package. A test ties it to `package.json`, so `--version` cannot lie. */
-export const VERSION = "1.0.0";
+export const VERSION = "1.0.1";
 
 /** The public address of each edition. */
 export const DIRECTORY_URL = "https://www.gpt-video.com/api/mcp";

@@ -1,6 +1,6 @@
 {
   "name": "gpt-video-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Connect GPT-Video to any AI assistant that speaks MCP over stdio. Edit video from Zed, JetBrains, Windsurf, n8n or behind a corporate proxy.",
   "license": "MIT",
   "homepage": "https://www.gpt-video.com/developers/mcp",

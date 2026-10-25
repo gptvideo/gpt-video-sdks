@@ -67,7 +67,7 @@ The GPT-Video node can be a tool of the n8n AI Agent. On a self-hosted n8n, comm
 
 ## Versions
 
-Version 1.0.0 of the nodes calls version 1 of the GPT-Video API. They need n8n with Node.js 20.19 or later. [CHANGELOG.md](CHANGELOG.md) lists the changes.
+Version 1.0.1 of the nodes calls version 1 of the GPT-Video API. They need n8n with Node.js 20.19 or later. [CHANGELOG.md](CHANGELOG.md) lists the changes.
 
 Questions: hello@gpt-video.com. The API documentation: https://www.gpt-video.com/developers.
 

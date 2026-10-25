@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-gpt-video",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The GPT-Video nodes for n8n: upload a video, find its clips, export them, and start a workflow when a job or an export ends.",
   "license": "MIT",
   "homepage": "https://www.gpt-video.com/developers",

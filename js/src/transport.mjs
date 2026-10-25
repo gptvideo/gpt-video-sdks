@@ -42,7 +42,7 @@ import { CONVENTIONS } from "./operations.generated.mjs";
 /** @typedef {import("./retry.mjs").NetworkFailure} NetworkFailure */
 
 /** The version of this package. A test ties it to package.json. */
-export const VERSION = "1.0.0";
+export const VERSION = "1.0.1";
 
 /** The base URL of the documentation, used when the caller gives none. */
 export const DEFAULT_BASE_URL = CONVENTIONS.baseUrl;
